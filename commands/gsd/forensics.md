@@ -49,7 +49,7 @@ Read and execute the forensics workflow from @~/.claude/get-shit-done/workflows/
 </success_criteria>
 
 <critical_rules>
-- **Read-only investigation:** Do not modify any project files during forensics. Only write the report.
+- **Read-only investigation:** Do not modify project source files during forensics. Only write the forensic report and update STATE.md session tracking.
 - **Redact sensitive data:** Strip absolute paths, API keys, tokens from reports and issues.
 - **Ground findings in evidence:** Every anomaly must cite specific commits, files, or state data.
 - **No speculation without evidence:** If data is insufficient, say so — do not fabricate root causes.
