@@ -312,6 +312,29 @@ must_haves:
     assert.strictEqual(result[0].pattern, 'import.*auth');
   });
 
+  test('extracts key_links from template-style 2-space indentation', () => {
+    const content = `---
+phase: 01
+must_haves:
+  truths:
+    - "Plan still includes observable truths"
+  key_links:
+    - from: "tests/auth.test.ts"
+      to: "src/auth.ts"
+      via: "import statement"
+      pattern: "import.*auth"
+status: draft
+---
+`;
+    const result = parseMustHavesBlock(content, 'key_links');
+    assert.deepStrictEqual(result, [{
+      from: 'tests/auth.test.ts',
+      to: 'src/auth.ts',
+      via: 'import statement',
+      pattern: 'import.*auth',
+    }]);
+  });
+
   test('returns empty array when block not found', () => {
     const content = `---
 phase: 01
@@ -395,6 +418,19 @@ must_haves:
     assert.strictEqual(result[1], 'Coverage exceeds 80%');
   });
 
+  test('preserves mismatched quotes in scalar list items', () => {
+    const content = `---
+phase: 01
+must_haves:
+  truths:
+    - "leading-only
+    - trailing-only"
+---
+`;
+    const result = parseMustHavesBlock(content, 'truths');
+    assert.deepStrictEqual(result, ['"leading-only', 'trailing-only"']);
+  });
+
   test('parses artifacts with 2-space indentation — issue #1356', () => {
     const content = `---
 phase: 01
@@ -431,6 +467,26 @@ must_haves:
     assert.strictEqual(result[0].path, 'src/api.ts');
     // The nested array should be captured
     assert.ok(result[0].exports !== undefined, 'should have exports field');
+  });
+
+  test('handles nested arrays within artifact objects using 2-space indentation', () => {
+    const content = `---
+phase: 01
+must_haves:
+  artifacts:
+    - path: "src/api.ts"
+      provides: "REST endpoints"
+      exports:
+        - "GET"
+        - "POST"
+---
+`;
+    const result = parseMustHavesBlock(content, 'artifacts');
+    assert.deepStrictEqual(result, [{
+      path: 'src/api.ts',
+      provides: 'REST endpoints',
+      exports: ['GET', 'POST'],
+    }]);
   });
 });
 

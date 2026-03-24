@@ -2,6 +2,8 @@
 
 Commit planning artifacts using the gsd-tools CLI, which automatically checks `commit_docs` config and gitignore status.
 
+Never stage `.planning/` files with raw git commands such as `git add .planning/...`, `git add .`, `git add -A`, or `git add -f`. Planning artifacts must go through `gsd-tools.cjs commit` so the CLI can commit or skip them safely.
+
 ## Commit via CLI
 
 Always use `gsd-tools.cjs commit` for `.planning/` files — it handles `commit_docs` and gitignore checks automatically:
@@ -11,6 +13,8 @@ node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs({scope}): {des
 ```
 
 The CLI will return `skipped` (with reason) if `commit_docs` is `false` or `.planning/` is gitignored. No manual conditional checks needed.
+
+If you are making a code commit in the same task, stage only the non-`.planning/` files with raw git and run a separate `gsd-tools.cjs commit` for planning artifacts when appropriate.
 
 ## Amend previous commit
 

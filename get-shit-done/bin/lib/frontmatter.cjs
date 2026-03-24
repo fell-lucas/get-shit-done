@@ -160,97 +160,123 @@ function spliceFrontmatter(content, newObj) {
   return `---\n${yamlStr}\n---\n\n` + content;
 }
 
+function stripYamlQuotes(value) {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function parseMustHavesScalar(value) {
+  const normalized = stripYamlQuotes(value.trim());
+  return /^\d+$/.test(normalized) ? parseInt(normalized, 10) : normalized;
+}
+
 function parseMustHavesBlock(content, blockName) {
-  // Extract a specific block from must_haves in raw frontmatter YAML
-  // Handles 3-level nesting: must_haves > artifacts/key_links > [{path, provides, ...}]
   const fmMatch = content.match(/^---\r?\n([\s\S]+?)\r?\n---/);
   if (!fmMatch) return [];
+  const lines = fmMatch[1].split(/\r?\n/);
+  const mustHavesIndex = lines.findIndex(line => /^\s*must_haves:\s*$/.test(line));
+  if (mustHavesIndex === -1) return [];
 
-  const yaml = fmMatch[1];
+  const mustHavesIndent = lines[mustHavesIndex].match(/^(\s*)/)[1].length;
+  let blockIndent = -1;
+  let blockStartIndex = -1;
 
-  // Find must_haves: first to detect its indentation level
-  const mustHavesMatch = yaml.match(/^(\s*)must_haves:\s*$/m);
-  if (!mustHavesMatch) return [];
-  const mustHavesIndent = mustHavesMatch[1].length;
+  for (let index = mustHavesIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.trim() === '') continue;
 
-  // Find the block (e.g., "truths:", "artifacts:", "key_links:") under must_haves
-  // It must be indented more than must_haves but we detect the actual indent dynamically
-  const blockPattern = new RegExp(`^(\\s+)${blockName}:\\s*$`, 'm');
-  const blockMatch = yaml.match(blockPattern);
-  if (!blockMatch) return [];
+    const indent = line.match(/^(\s*)/)[1].length;
+    if (indent <= mustHavesIndent) break;
 
-  const blockIndent = blockMatch[1].length;
-  // The block must be nested under must_haves (more indented)
-  if (blockIndent <= mustHavesIndent) return [];
+    const keyMatch = line.match(/^\s*([a-zA-Z0-9_-]+):\s*$/);
+    if (keyMatch && keyMatch[1] === blockName) {
+      blockIndent = indent;
+      blockStartIndex = index + 1;
+      break;
+    }
+  }
 
-  // Find where the block starts in the yaml string
-  const blockStart = yaml.indexOf(blockMatch[0]);
-  if (blockStart === -1) return [];
-
-  const afterBlock = yaml.slice(blockStart);
-  const blockLines = afterBlock.split(/\r?\n/).slice(1); // skip the header line
+  if (blockStartIndex === -1) return [];
 
   // List items are indented one level deeper than blockIndent
   // Continuation KVs are indented one level deeper than list items
   const items = [];
   let current = null;
-  let listItemIndent = -1; // detected from first "- " line
+  let itemIndent = -1;
+  let currentArrayKey = null;
+  let currentArrayIndent = -1;
 
-  for (const line of blockLines) {
-    // Skip empty lines
+  const pushCurrent = () => {
+    if (current !== null) items.push(current);
+  };
+
+  for (let index = blockStartIndex; index < lines.length; index += 1) {
+    const line = lines[index];
     if (line.trim() === '') continue;
     const indent = line.match(/^(\s*)/)[1].length;
-    // Stop at same or lower indent level than the block header
-    if (indent <= blockIndent && line.trim() !== '') break;
+    if (indent <= blockIndent) break;
 
     const trimmed = line.trim();
-
     if (trimmed.startsWith('- ')) {
-      // Detect list item indent from the first occurrence
-      if (listItemIndent === -1) listItemIndent = indent;
+      if (itemIndent === -1 || indent === itemIndent) {
+        pushCurrent();
+        itemIndent = indent;
+        currentArrayKey = null;
+        currentArrayIndent = -1;
 
-      // Only treat as a top-level list item if at the expected indent
-      if (indent === listItemIndent) {
-        if (current) items.push(current);
-        current = {};
-        const afterDash = trimmed.slice(2);
-        // Check if it's a simple string item (no colon means not a key-value)
-        if (!afterDash.includes(':')) {
-          current = afterDash.replace(/^["']|["']$/g, '');
-        } else {
-          // Key-value on same line as dash: "- path: value"
-          const kvMatch = afterDash.match(/^(\w+):\s*"?([^"]*)"?\s*$/);
+        const itemValue = trimmed.slice(2).trim();
+        if (itemValue === '') {
+          current = {};
+          continue;
+        }
+
+        if (!/^["']/.test(itemValue)) {
+          const kvMatch = itemValue.match(/^([a-zA-Z0-9_-]+):\s*(.*)$/);
           if (kvMatch) {
             current = {};
-            current[kvMatch[1]] = kvMatch[2];
+            if (kvMatch[2].trim() === '') {
+              current[kvMatch[1]] = [];
+              currentArrayKey = kvMatch[1];
+              currentArrayIndent = indent;
+            } else {
+              current[kvMatch[1]] = parseMustHavesScalar(kvMatch[2]);
+            }
+            continue;
           }
         }
+
+        current = parseMustHavesScalar(itemValue);
         continue;
       }
+
+      if (current && typeof current === 'object' && currentArrayKey && indent > currentArrayIndent) {
+        if (!Array.isArray(current[currentArrayKey])) {
+          current[currentArrayKey] = current[currentArrayKey] ? [current[currentArrayKey]] : [];
+        }
+        current[currentArrayKey].push(parseMustHavesScalar(trimmed.slice(2)));
+      }
+      continue;
     }
 
-    if (current && typeof current === 'object' && indent > listItemIndent) {
-      // Continuation key-value or nested array item
-      if (trimmed.startsWith('- ')) {
-        // Array item under a key
-        const arrVal = trimmed.slice(2).replace(/^["']|["']$/g, '');
-        const keys = Object.keys(current);
-        const lastKey = keys[keys.length - 1];
-        if (lastKey && !Array.isArray(current[lastKey])) {
-          current[lastKey] = current[lastKey] ? [current[lastKey]] : [];
-        }
-        if (lastKey) current[lastKey].push(arrVal);
-      } else {
-        const kvMatch = trimmed.match(/^(\w+):\s*"?([^"]*)"?\s*$/);
-        if (kvMatch) {
-          const val = kvMatch[2];
-          // Try to parse as number
-          current[kvMatch[1]] = /^\d+$/.test(val) ? parseInt(val, 10) : val;
+    if (current && typeof current === 'object') {
+      const kvMatch = trimmed.match(/^([a-zA-Z0-9_-]+):\s*(.*)$/);
+      if (kvMatch) {
+        if (kvMatch[2].trim() === '') {
+          current[kvMatch[1]] = [];
+          currentArrayKey = kvMatch[1];
+          currentArrayIndent = indent;
+        } else {
+          current[kvMatch[1]] = parseMustHavesScalar(kvMatch[2]);
+          currentArrayKey = null;
+          currentArrayIndent = -1;
         }
       }
     }
   }
-  if (current) items.push(current);
+
+  pushCurrent();
 
   return items;
 }

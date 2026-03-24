@@ -55,9 +55,14 @@ Do the work directly:
 Commit the change atomically:
 
 ```bash
-git add -A
+git status --short
+git add path/to/file
 git commit -m "fix: {concise description of what changed}"
 ```
+
+Stage only the intended non-`.planning/` files for the quick task. Never use `git add -A`, `git add .`, or raw `git add .planning/...` here.
+
+If the task touched `.planning/` artifacts, do not stage them with raw git. Use `node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit ... --files ...` so planning commits are routed through the CLI guard or skipped.
 
 Use conventional commit format: `fix:`, `feat:`, `docs:`, `chore:`, `refactor:` as appropriate.
 </step>

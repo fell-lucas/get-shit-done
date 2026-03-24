@@ -858,8 +858,9 @@ describe('verify key-links command', () => {
     cleanup(tmpDir);
   });
 
-  function writePlanWithKeyLinks(tmpDir, keyLinksYaml) {
-    // parseMustHavesBlock expects 4-space indent for block name, 6-space for items, 8-space for keys
+  function writePlanWithKeyLinks(tmpDir, keyLinksYaml, { indentation = 4 } = {}) {
+    const blockIndent = ' '.repeat(indentation);
+    const itemIndent = ' '.repeat(indentation + 2);
     const content = [
       '---',
       'phase: 01-test',
@@ -870,8 +871,8 @@ describe('verify key-links command', () => {
       'files_modified: [src/a.js]',
       'autonomous: true',
       'must_haves:',
-      '    key_links:',
-      ...keyLinksYaml.map(line => `      ${line}`),
+      `${blockIndent}key_links:`,
+      ...keyLinksYaml.map(line => `${itemIndent}${line}`),
       '---',
       '',
       '<tasks>',
@@ -888,12 +889,28 @@ describe('verify key-links command', () => {
     fs.writeFileSync(planPath, content);
   }
 
-  test('verifies link when pattern found in source', () => {
+  test('verifies key_links with 4-space indentation when pattern found in source', () => {
     writePlanWithKeyLinks(tmpDir, [
       '- from: "src/a.js"',
       '  to: "src/b.js"',
       '  pattern: "import.*b"',
     ]);
+    fs.writeFileSync(path.join(tmpDir, 'src', 'a.js'), "import { x } from './b';\n");
+    fs.writeFileSync(path.join(tmpDir, 'src', 'b.js'), 'exports.x = 1;\n');
+
+    const result = runGsdTools('verify key-links .planning/phases/01-test/01-01-PLAN.md', tmpDir);
+    assert.ok(result.success, `Command failed: ${result.error}`);
+
+    const output = JSON.parse(result.output);
+    assert.strictEqual(output.all_verified, true, `Expected all_verified true: ${JSON.stringify(output)}`);
+  });
+
+  test('verifies key_links with template-style 2-space indentation when pattern found in source', () => {
+    writePlanWithKeyLinks(tmpDir, [
+      '- from: "src/a.js"',
+      '  to: "src/b.js"',
+      '  pattern: "import.*b"',
+    ], { indentation: 2 });
     fs.writeFileSync(path.join(tmpDir, 'src', 'a.js'), "import { x } from './b';\n");
     fs.writeFileSync(path.join(tmpDir, 'src', 'b.js'), 'exports.x = 1;\n');
 

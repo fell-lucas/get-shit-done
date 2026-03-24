@@ -314,11 +314,17 @@ After each task completes (verification passed, done criteria met), commit immed
 
 **1. Check modified files:** `git status --short`
 
-**2. Stage task-related files individually** (NEVER `git add .` or `git add -A`):
+**2. Stage task-related application/runtime files individually** (NEVER `git add .`, `git add -A`, or raw-stage `.planning/` paths):
 ```bash
 git add src/api/auth.ts
 git add src/types/user.ts
 ```
+
+If a task also changes `.planning/` artifacts, do NOT stage them with raw git commands. Route planning docs through the CLI guard instead:
+```bash
+node ~/.claude/get-shit-done/bin/gsd-tools.cjs commit "docs({phase}): {description}" --files .planning/STATE.md .planning/ROADMAP.md
+```
+The CLI is the source of truth for whether planning docs are committed or skipped.
 
 **3. Commit type:**
 
@@ -351,7 +357,10 @@ git commit -m "{type}({phase}-{plan}): {concise task description}
 - **Single-repo:** `TASK_COMMIT=$(git rev-parse --short HEAD)` — track for SUMMARY.
 - **Multi-repo (sub_repos):** Extract hashes from `commit-to-subrepo` JSON output (`repos.{name}.hash`). Record all hashes for SUMMARY (e.g., `backend@abc1234, frontend@def5678`).
 
-**6. Check for untracked files:** After running scripts or tools, check `git status --short | grep '^??'`. For any new untracked files: commit if intentional, add to `.gitignore` if generated/runtime output. Never leave generated files untracked.
+**6. Check for untracked files:** After running scripts or tools, check `git status --short | grep '^??'`.
+- Application/source files created intentionally for the task: stage them individually and commit normally.
+- Generated/runtime output: add to `.gitignore` or remove it. Never leave generated files untracked.
+- `.planning/` artifacts: NEVER `git add`, `git add -A`, or `git add -f` them. If they should be committed, use `node ~/.claude/get-shit-done/bin/gsd-tools.cjs commit ... --files ...`; otherwise leave them for the planning workflow to skip. Do not force-add `.planning/` files.
 </task_commit_protocol>
 
 <summary_creation>

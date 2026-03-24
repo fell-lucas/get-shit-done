@@ -29,12 +29,13 @@ Configuration options for `.planning/` directory behavior.
 <commit_docs_behavior>
 
 **When `commit_docs: true` (default):**
-- Planning files committed normally
+- Planning files are committed via `gsd-tools.cjs commit`, never raw `git add` for `.planning/`
 - SUMMARY.md, STATE.md, ROADMAP.md tracked in git
 - Full history of planning decisions preserved
 
 **When `commit_docs: false`:**
-- Skip all `git add`/`git commit` for `.planning/` files
+- `gsd-tools.cjs commit` skips `.planning/` commits
+- Do not stage or force-add `.planning/` files with raw git commands
 - User must add `.planning/` to `.gitignore`
 - Useful for: OSS contributions, client projects, keeping planning private
 
@@ -64,6 +65,8 @@ node "$HOME/.claude/get-shit-done/bin/gsd-tools.cjs" commit "docs: update state"
 ```
 
 The CLI checks `commit_docs` config and gitignore status internally — no manual conditionals needed.
+
+Raw staging is intentionally unsupported for planning docs: never use `git add .planning/...`, `git add .`, `git add -A`, or `git add -f` to sweep `.planning/` into a normal code commit.
 
 </commit_docs_behavior>
 

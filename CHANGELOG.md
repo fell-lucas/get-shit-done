@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- Frontmatter `must_haves` parsing now handles template-style 2-space indentation for `key_links`, covering issue #1356-style plans in verification.
+
 ## [1.28.0] - 2026-03-22
 
 ### Added
